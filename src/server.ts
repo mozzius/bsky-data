@@ -11,6 +11,7 @@ export function createServer(db: DB): Express {
 <head>
   <title>Bluesky Data Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -93,7 +94,6 @@ export function createServer(db: DB): Express {
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: [],
         datasets: [
           {
             label: 'Posts',
@@ -150,8 +150,16 @@ export function createServer(db: DB): Express {
             }
           },
           x: {
+            type: 'time',
+            time: {
+              unit: 'second',
+              displayFormats: {
+                second: 'HH:mm:ss'
+              }
+            },
             ticks: {
-              color: '#9ca3af'
+              color: '#9ca3af',
+              maxTicksLimit: 10
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -165,7 +173,6 @@ export function createServer(db: DB): Express {
     const percentageChart = new Chart(percentageCtx, {
       type: 'line',
       data: {
-        labels: [],
         datasets: [
           {
             label: '% of Top-Level Posts with Threadgate Rules',
@@ -213,8 +220,16 @@ export function createServer(db: DB): Express {
             }
           },
           x: {
+            type: 'time',
+            time: {
+              unit: 'second',
+              displayFormats: {
+                second: 'HH:mm:ss'
+              }
+            },
             ticks: {
-              color: '#9ca3af'
+              color: '#9ca3af',
+              maxTicksLimit: 10
             },
             grid: {
               color: 'rgba(255, 255, 255, 0.1)'
@@ -300,19 +315,17 @@ export function createServer(db: DB): Express {
         if (historical.length > 0) {
           // Populate charts with historical data
           historical.forEach((point, index) => {
-            const timestamp = new Date(point.timestamp / 1000).toLocaleTimeString();
+            const timestamp = new Date(point.timestamp / 1000);
 
-            chart.data.labels.push(timestamp);
-            chart.data.datasets[0].data.push(point.posts);
-            chart.data.datasets[1].data.push(point.threadgates);
-            chart.data.datasets[2].data.push(point.postgates);
+            chart.data.datasets[0].data.push({ x: timestamp, y: point.posts });
+            chart.data.datasets[1].data.push({ x: timestamp, y: point.threadgates });
+            chart.data.datasets[2].data.push({ x: timestamp, y: point.postgates });
 
             const threadgatePercentage = point.topLevelPosts > 0
               ? (point.topLevelPostsWithThreadGate / point.topLevelPosts) * 100
               : 0;
 
-            percentageChart.data.labels.push(timestamp);
-            percentageChart.data.datasets[0].data.push(threadgatePercentage);
+            percentageChart.data.datasets[0].data.push({ x: timestamp, y: threadgatePercentage });
           });
 
           chart.update();
@@ -333,17 +346,15 @@ export function createServer(db: DB): Express {
         document.getElementById('postgateCount').textContent = data.postgates.toLocaleString();
         document.getElementById('threadgatePercentage').textContent = data.threadgatePercentage.toFixed(2) + '%';
 
-        const now = new Date().toLocaleTimeString();
+        const now = new Date();
 
         // Update first chart
-        chart.data.labels.push(now);
-        chart.data.datasets[0].data.push(data.posts);
-        chart.data.datasets[1].data.push(data.threadgates);
-        chart.data.datasets[2].data.push(data.postgates);
+        chart.data.datasets[0].data.push({ x: now, y: data.posts });
+        chart.data.datasets[1].data.push({ x: now, y: data.threadgates });
+        chart.data.datasets[2].data.push({ x: now, y: data.postgates });
 
         // Update percentage chart
-        percentageChart.data.labels.push(now);
-        percentageChart.data.datasets[0].data.push(data.threadgatePercentage);
+        percentageChart.data.datasets[0].data.push({ x: now, y: data.threadgatePercentage });
 
         // Update rules chart
         rulesChart.data.datasets[0].data = [
@@ -355,15 +366,13 @@ export function createServer(db: DB): Express {
         ];
 
         // Keep only last 20 data points
-        if (chart.data.labels.length > 20) {
-          chart.data.labels.shift();
+        if (chart.data.datasets[0].data.length > 20) {
           chart.data.datasets[0].data.shift();
           chart.data.datasets[1].data.shift();
           chart.data.datasets[2].data.shift();
         }
 
-        if (percentageChart.data.labels.length > 20) {
-          percentageChart.data.labels.shift();
+        if (percentageChart.data.datasets[0].data.length > 20) {
           percentageChart.data.datasets[0].data.shift();
         }
 
