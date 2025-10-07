@@ -89,6 +89,14 @@ export function createServer(db: DB): Express {
     <canvas id="rulesChart"></canvas>
   </div>
 
+  <div id="chartContainer" style="margin-top: 30px;">
+    <canvas id="rulesPerThreadGateChart"></canvas>
+  </div>
+
+  <div id="chartContainer" style="margin-top: 30px;">
+    <canvas id="combinationsChart"></canvas>
+  </div>
+
   <script>
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
@@ -307,6 +315,119 @@ export function createServer(db: DB): Express {
       }
     });
 
+    const rulesPerThreadGateCtx = document.getElementById('rulesPerThreadGateChart').getContext('2d');
+    const rulesPerThreadGateChart = new Chart(rulesPerThreadGateCtx, {
+      type: 'bar',
+      data: {
+        labels: ['0 Rules', '1 Rule', '2 Rules', '3 Rules', '4 Rules'],
+        datasets: [
+          {
+            label: 'Number of Threadgates',
+            data: [0, 0, 0, 0, 0],
+            backgroundColor: 'rgba(167, 139, 250, 0.7)',
+            borderColor: '#a78bfa',
+            borderWidth: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: {
+          duration: 500
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: 'Rules Per Threadgate Distribution',
+            color: '#fff',
+            font: {
+              size: 16
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#9ca3af'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          x: {
+            ticks: {
+              color: '#9ca3af'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          }
+        }
+      }
+    });
+
+    const combinationsCtx = document.getElementById('combinationsChart').getContext('2d');
+    const combinationsChart = new Chart(combinationsCtx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Number of Threadgates',
+            data: [],
+            backgroundColor: 'rgba(52, 211, 153, 0.7)',
+            borderColor: '#34d399',
+            borderWidth: 2
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        animation: {
+          duration: 500
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: true,
+            text: 'Top 10 Rule Combinations',
+            color: '#fff',
+            font: {
+              size: 16
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: {
+              color: '#9ca3af'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          },
+          y: {
+            ticks: {
+              color: '#9ca3af'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            }
+          }
+        }
+      }
+    });
+
     async function loadHistoricalData() {
       try {
         const response = await fetch('/api/historical?limit=20');
@@ -365,6 +486,19 @@ export function createServer(db: DB): Express {
           data.ruleStats.hiddenPostsOnly || 0
         ];
 
+        // Update rules per threadgate chart
+        rulesPerThreadGateChart.data.datasets[0].data = [
+          data.rulesPerThreadGate.zero || 0,
+          data.rulesPerThreadGate.one || 0,
+          data.rulesPerThreadGate.two || 0,
+          data.rulesPerThreadGate.three || 0,
+          data.rulesPerThreadGate.four || 0
+        ];
+
+        // Update combinations chart
+        combinationsChart.data.labels = data.topCombinations.map(c => c.combination);
+        combinationsChart.data.datasets[0].data = data.topCombinations.map(c => c.count);
+
         // Keep only last 20 data points
         if (chart.data.datasets[0].data.length > 20) {
           chart.data.datasets[0].data.shift();
@@ -379,6 +513,8 @@ export function createServer(db: DB): Express {
         chart.update();
         percentageChart.update();
         rulesChart.update();
+        rulesPerThreadGateChart.update();
+        combinationsChart.update();
       } catch (error) {
         console.error('Failed to fetch data:', error);
       }
@@ -409,6 +545,8 @@ export function createServer(db: DB): Express {
       : 0;
 
     const ruleStats = db.getThreadGateRuleStats();
+    const rulesPerThreadGate = db.getRulesPerThreadGateDistribution();
+    const topCombinations = db.getTopRuleCombinations(10);
 
     res.json({
       posts: db.getPostCount(),
@@ -420,6 +558,8 @@ export function createServer(db: DB): Express {
       threadgatesWithRules,
       threadgateRulesPercentage,
       ruleStats,
+      rulesPerThreadGate,
+      topCombinations,
     });
   });
 

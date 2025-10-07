@@ -255,6 +255,62 @@ export class DB {
     };
   }
 
+  getRulesPerThreadGateDistribution(): {
+    zero: number;
+    one: number;
+    two: number;
+    three: number;
+    four: number;
+  } {
+    const stmt = this.db.prepare(`
+      SELECT
+        SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 0 THEN 1 ELSE 0 END) as zero,
+        SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 1 THEN 1 ELSE 0 END) as one,
+        SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 2 THEN 1 ELSE 0 END) as two,
+        SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 3 THEN 1 ELSE 0 END) as three,
+        SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 4 THEN 1 ELSE 0 END) as four
+      FROM threadgates
+      WHERE operation = 'create'
+    `);
+    return stmt.get() as {
+      zero: number;
+      one: number;
+      two: number;
+      three: number;
+      four: number;
+    };
+  }
+
+  getTopRuleCombinations(limit: number = 10): Array<{
+    combination: string;
+    count: number;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT
+        CASE
+          WHEN hasMentionRule = 0 AND hasFollowingRule = 0 AND hasFollowerRule = 0 AND hasListRule = 0 THEN 'None'
+          ELSE
+            (CASE WHEN hasMentionRule = 1 THEN 'Mention' ELSE '' END) ||
+            (CASE WHEN hasMentionRule = 1 AND (hasFollowingRule = 1 OR hasFollowerRule = 1 OR hasListRule = 1) THEN ' + ' ELSE '' END) ||
+            (CASE WHEN hasFollowingRule = 1 THEN 'Following' ELSE '' END) ||
+            (CASE WHEN hasFollowingRule = 1 AND (hasFollowerRule = 1 OR hasListRule = 1) THEN ' + ' ELSE '' END) ||
+            (CASE WHEN hasFollowerRule = 1 THEN 'Follower' ELSE '' END) ||
+            (CASE WHEN hasFollowerRule = 1 AND hasListRule = 1 THEN ' + ' ELSE '' END) ||
+            (CASE WHEN hasListRule = 1 THEN 'List' ELSE '' END)
+        END as combination,
+        COUNT(*) as count
+      FROM threadgates
+      WHERE operation = 'create'
+      GROUP BY combination
+      ORDER BY count DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as Array<{
+      combination: string;
+      count: number;
+    }>;
+  }
+
   getHistoricalStats(limit: number = 20): Array<{
     timestamp: number;
     posts: number;
