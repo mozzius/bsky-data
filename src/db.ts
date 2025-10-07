@@ -17,6 +17,7 @@ export interface ThreadGate {
   author: string;
   post: string;
   hasRules: boolean;
+  hasNobodyCanReply: boolean;
   hasMentionRule: boolean;
   hasFollowingRule: boolean;
   hasFollowerRule: boolean;
@@ -66,6 +67,7 @@ export class DB {
         author TEXT NOT NULL,
         post TEXT NOT NULL,
         hasRules INTEGER NOT NULL DEFAULT 0,
+        hasNobodyCanReply INTEGER NOT NULL DEFAULT 0,
         hasMentionRule INTEGER NOT NULL DEFAULT 0,
         hasFollowingRule INTEGER NOT NULL DEFAULT 0,
         hasFollowerRule INTEGER NOT NULL DEFAULT 0,
@@ -129,6 +131,16 @@ export class DB {
         ALTER TABLE threadgates ADD COLUMN hasHiddenPostsOnly INTEGER NOT NULL DEFAULT 0;
       `);
     }
+
+    // Migration: Add hasNobodyCanReply column if it doesn't exist
+    const hasNobodyCanReply = threadgateColumns.some(
+      (col) => col.name === "hasNobodyCanReply",
+    );
+    if (!hasNobodyCanReply) {
+      this.db.exec(`
+        ALTER TABLE threadgates ADD COLUMN hasNobodyCanReply INTEGER NOT NULL DEFAULT 0;
+      `);
+    }
   }
 
   insertPost(post: Post) {
@@ -150,8 +162,8 @@ export class DB {
 
   insertThreadGate(threadgate: ThreadGate) {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO threadgates (uri, cid, author, post, hasRules, hasMentionRule, hasFollowingRule, hasFollowerRule, hasListRule, hasHiddenPostsOnly, operation, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO threadgates (uri, cid, author, post, hasRules, hasNobodyCanReply, hasMentionRule, hasFollowingRule, hasFollowerRule, hasListRule, hasHiddenPostsOnly, operation, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       threadgate.uri,
@@ -159,6 +171,7 @@ export class DB {
       threadgate.author,
       threadgate.post,
       threadgate.hasRules ? 1 : 0,
+      threadgate.hasNobodyCanReply ? 1 : 0,
       threadgate.hasMentionRule ? 1 : 0,
       threadgate.hasFollowingRule ? 1 : 0,
       threadgate.hasFollowerRule ? 1 : 0,
@@ -230,6 +243,7 @@ export class DB {
   }
 
   getThreadGateRuleStats(): {
+    nobodyCanReply: number;
     mentionRule: number;
     followingRule: number;
     followerRule: number;
@@ -238,6 +252,7 @@ export class DB {
   } {
     const stmt = this.db.prepare(`
       SELECT
+        SUM(hasNobodyCanReply) as nobodyCanReply,
         SUM(hasMentionRule) as mentionRule,
         SUM(hasFollowingRule) as followingRule,
         SUM(hasFollowerRule) as followerRule,
@@ -247,6 +262,7 @@ export class DB {
       WHERE operation = 'create'
     `);
     return stmt.get() as {
+      nobodyCanReply: number;
       mentionRule: number;
       followingRule: number;
       followerRule: number;
@@ -270,7 +286,7 @@ export class DB {
         SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 3 THEN 1 ELSE 0 END) as three,
         SUM(CASE WHEN (hasMentionRule + hasFollowingRule + hasFollowerRule + hasListRule) = 4 THEN 1 ELSE 0 END) as four
       FROM threadgates
-      WHERE operation = 'create'
+      WHERE operation = 'create' AND hasNobodyCanReply = 0
     `);
     return stmt.get() as {
       zero: number;
@@ -288,6 +304,7 @@ export class DB {
     const stmt = this.db.prepare(`
       SELECT
         CASE
+          WHEN hasNobodyCanReply = 1 THEN 'Nobody Can Reply'
           WHEN hasMentionRule = 0 AND hasFollowingRule = 0 AND hasFollowerRule = 0 AND hasListRule = 0 THEN 'None'
           ELSE
             (CASE WHEN hasMentionRule = 1 THEN 'Mention' ELSE '' END) ||

@@ -44,27 +44,30 @@ ingestor.jetstream.on("commit", (event) => {
       if (event.commit.operation === "create") {
         const record = event.commit.record as any;
         if (record?.$type === "app.bsky.feed.threadgate") {
-          const allow = record.allow || [];
-          const hasRules = allow.length > 0;
-          const hasMentionRule = allow.some(
+          const allow = record.allow;
+          const hasAllowField = allow !== undefined && allow !== null;
+          const hasRules = hasAllowField && allow.length > 0;
+          const hasNobodyCanReply = hasAllowField && allow.length === 0;
+
+          const hasMentionRule = hasRules && allow.some(
             (rule: any) =>
               rule.$type === "app.bsky.feed.threadgate#mentionRule",
           );
-          const hasFollowingRule = allow.some(
+          const hasFollowingRule = hasRules && allow.some(
             (rule: any) =>
               rule.$type === "app.bsky.feed.threadgate#followingRule",
           );
-          const hasFollowerRule = allow.some(
+          const hasFollowerRule = hasRules && allow.some(
             (rule: any) =>
               rule.$type === "app.bsky.feed.threadgate#followerRule",
           );
-          const hasListRule = allow.some(
+          const hasListRule = hasRules && allow.some(
             (rule: any) => rule.$type === "app.bsky.feed.threadgate#listRule",
           );
 
           // Check if only has hiddenReplies and no other rules
           const hasHiddenReplies = record.hiddenReplies && record.hiddenReplies.length > 0;
-          const hasHiddenPostsOnly = hasHiddenReplies && !hasRules;
+          const hasHiddenPostsOnly = hasHiddenReplies && !hasRules && !hasNobodyCanReply;
 
           db.insertThreadGate({
             uri: `at://${event.did}/${event.commit.collection}/${event.commit.rkey}`,
@@ -72,6 +75,7 @@ ingestor.jetstream.on("commit", (event) => {
             author: event.did,
             post: record.post || "",
             hasRules,
+            hasNobodyCanReply,
             hasMentionRule,
             hasFollowingRule,
             hasFollowerRule,

@@ -251,12 +251,13 @@ export function createServer(db: DB): Express {
     const rulesChart = new Chart(rulesCtx, {
       type: 'bar',
       data: {
-        labels: ['Mention', 'Following', 'Follower', 'List', 'Hidden Posts Only'],
+        labels: ['Nobody Can Reply', 'Mention', 'Following', 'Follower', 'List', 'Hidden Posts Only'],
         datasets: [
           {
             label: 'Rule Usage Count',
-            data: [0, 0, 0, 0, 0],
+            data: [0, 0, 0, 0, 0, 0],
             backgroundColor: [
+              'rgba(239, 68, 68, 0.7)',
               'rgba(96, 165, 250, 0.7)',
               'rgba(52, 211, 153, 0.7)',
               'rgba(248, 113, 113, 0.7)',
@@ -264,6 +265,7 @@ export function createServer(db: DB): Express {
               'rgba(167, 139, 250, 0.7)'
             ],
             borderColor: [
+              '#ef4444',
               '#60a5fa',
               '#34d399',
               '#f87171',
@@ -479,6 +481,7 @@ export function createServer(db: DB): Express {
 
         // Update rules chart
         rulesChart.data.datasets[0].data = [
+          data.ruleStats.nobodyCanReply || 0,
           data.ruleStats.mentionRule || 0,
           data.ruleStats.followingRule || 0,
           data.ruleStats.followerRule || 0,
